@@ -1,0 +1,19 @@
+--find-links https://download.pytorch.org/whl/torch_stable.html
+# Cookiecutter and Sphinx
+bump2version>=0.5.11
+Click>=7.1.2
+coverage>=4.5.4
+flake8>=3.7.8
+jinja2>=3.0.0
+joblib
+matplotlib
+
+numpy>=1.23.0
+pre-commit>=2.19.0
+pytest>=6.2.4
+scipy
+torch>=1.13.0
+tox>=3.14.0
+twine>=1.14.0
+watchdog>=0.9.0
+wheel>=0.33.6
