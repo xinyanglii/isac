@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from isac.antenna import UniformCubicArray, UniformLinearArray, UniformRectangularArray
-from isac.module.channel import MultiPathChannelConfig, OFDMBeamSpaceChannel
+from isac.module.channel import MultiPathChannelConfig, OFDMBeamSpaceChannel, generate_multipath_ofdm_channel
 from isac.module.ofdm import OFDMConfig
 from isac.utils import crandn, uniform
 
@@ -48,7 +48,9 @@ def test_beam_space_channel(
     num_symbols,
     TXArray,
     RXArray,
+    device,
 ):
+    batch_size = 16
     sampling_time = 1 / scs / num_carriers
     symbol_duration = 1 / scs
 
@@ -61,12 +63,16 @@ def test_beam_space_channel(
     elif TXArray is UniformCubicArray:
         tx_array = TXArray(antenna_dimension=(num_ant_tx, *np.random.randint(1, 8, size=2)))
 
+    num_ant_tx = tx_array.num_antennas
+
     if RXArray is UniformLinearArray:
         rx_array = RXArray(num_antennas=num_ant_rx)
     elif RXArray is UniformRectangularArray:
         rx_array = RXArray(antenna_dimension=(num_ant_rx, np.random.randint(1, 8)))
     elif RXArray is UniformCubicArray:
         rx_array = RXArray(antenna_dimension=(num_ant_rx, *np.random.randint(1, 8, size=2)))
+
+    num_ant_rx = rx_array.num_antennas
 
     mpc_configs = MultiPathChannelConfig.random_generate(
         num_paths=num_paths,
@@ -78,7 +84,15 @@ def test_beam_space_channel(
         tx_array=tx_array,
         rx_array=rx_array,
     )
-    H = obschannel.get_channel(num_carriers=num_carriers, num_symbols=num_symbols)
+    H = generate_multipath_ofdm_channel(
+        tx_array=tx_array,
+        rx_array=rx_array,
+        num_carriers=num_carriers,
+        num_symbols=num_symbols,
+        mpc_configs=mpc_configs,
+        symbol_time=symbol_duration,
+        subcarrier_spacing=scs,
+    )
 
     H_wo_shift = torch.fft.ifftshift(H, dim=-2)
 
@@ -88,9 +102,14 @@ def test_beam_space_channel(
     doppler_shifts = mpc_configs.doppler_shifts
     path_delays = mpc_configs.path_delays
 
+    signal_in = crandn((batch_size, num_ant_tx, num_carriers, num_symbols), device=device)
+    signal_in_wo_shift = torch.fft.ifftshift(signal_in, dim=-2)
+    signal_out = obschannel(signal_in)
+    signal_out_wo_shift = torch.fft.ifftshift(signal_out, dim=-2)
+
     for n in range(num_carriers):
         for k in range(num_symbols):
-            H_true = 0
+            H_true = torch.zeros((num_ant_rx, num_ant_tx), dtype=torch.complex64)
             for path in range(num_paths):
                 H_true += (
                     path_gains[path]
@@ -99,5 +118,6 @@ def test_beam_space_channel(
                     )
                     * torch.outer(Ar[path], At[path].conj())
                 )
-
-            assert np.allclose(H_wo_shift[:, :, n, k].cpu(), H_true, rtol=1e-1)
+            assert torch.allclose(H_wo_shift[:, :, n, k], H_true, rtol=1e-1)
+            signal_out_true = torch.einsum("...i,bi...->b...", H_true.to(signal_in), signal_in_wo_shift[..., n, k])
+            assert torch.allclose(signal_out_wo_shift[..., n, k], signal_out_true, rtol=1e-1)

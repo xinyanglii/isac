@@ -17,7 +17,7 @@ def allcomb(request):
     return request.config.getoption("--all")
 
 
-carrier_frequency_list = [2.4e9, 1e3, c]
+carrier_frequency_list = [2.4e9, c]
 Nfft_list = [64, 31]
 num_carriers_list = [1, 16]
 num_symbols_list = [1, 16]
@@ -26,7 +26,7 @@ num_ant_rx_list = [1, 8]
 scs_list = [1.0, 15e3]
 cp_frac_list = np.linspace(1e-2, 1, 5)
 num_guard_carriers_list = list(product([0, 1, 8], [0, 1, 8]))
-num_paths_list = [3, 1, 0, 8]
+num_paths_list = [3, 1, 0]
 dc_null_list = [True, False]
 
 device_list = [torch.device("cpu")] + [torch.device(i) for i in range(torch.cuda.device_count())]

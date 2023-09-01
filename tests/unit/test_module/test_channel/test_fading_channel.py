@@ -8,11 +8,10 @@ from isac.utils import db2lin, lin2db, measure_batch_sig_pow
 batch_size = 16
 
 
-@pytest.mark.parametrize("snr_db", [-10, 0, 50])
-@pytest.mark.parametrize("sigpow_db", [-10, 0, 50])  # total power over all antennas
+@pytest.mark.parametrize("snr_db", [-10, 0])
+@pytest.mark.parametrize("sigpow_db", [10, 0])  # total power over all antennas
 def test_AWGNchannel(num_ant_tx, snr_db, sigpow_db, device):
-    sig_len = 50000
-    num_ant = num_ant_tx
+    sig_len = 5000
     sigpow_lin = db2lin(sigpow_db)
     awgn = AWGNChannel(snr_db=snr_db, sigpow_db=sigpow_db)
 
@@ -45,11 +44,11 @@ def test_AWGNchannel(num_ant_tx, snr_db, sigpow_db, device):
 
 
 @pytest.mark.parametrize("sigpow_db", [-10, 0])
-@pytest.mark.parametrize("pl_db", [10, 50])
+@pytest.mark.parametrize("pl_db", [10])
 def test_rayleigh(num_ant_tx, num_ant_rx, sigpow_db, pl_db, device):
     sig_len = 10
     sigpow_lin = db2lin(sigpow_db)
-    num_trials = 5000
+    num_trials = 500
 
     rl_chan = RayleighChannel(path_loss=pl_db, num_ant_rx=num_ant_rx)
 

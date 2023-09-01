@@ -1,2 +1,2 @@
-from .fading_channel import AWGNChannel, RayleighChannel
-from .multipath_channel import MultiPathChannelConfig, OFDMBeamSpaceChannel
+from .fading_channel import *
+from .multipath_channel import *

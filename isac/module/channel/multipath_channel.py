@@ -120,8 +120,9 @@ class MultiPathChannelConfig:
 
     __repr__ = __str__
 
-    @staticmethod
+    @classmethod
     def random_generate(
+        cls,
         num_paths: int,
         sampling_time: float = 1 / (1024 * 15e3),
         carrier_frequency: float = 3e9,
@@ -144,15 +145,13 @@ class MultiPathChannelConfig:
         v = uniform(-80, 80, num_paths)
         doppler_shifts = v * fc / c
 
-        mpc_configs = MultiPathChannelConfig(
+        return cls(
             path_gains=path_gains,
             path_delays=path_delays,
             doppler_shifts=doppler_shifts,
             aoas=aoas,
             aods=aods,
         )
-
-        return mpc_configs
 
 
 class OFDMBeamSpaceChannel(nn.Module):
@@ -216,64 +215,6 @@ class OFDMBeamSpaceChannel(nn.Module):
         assert isinstance(ofdmcon, OFDMConfig)
         self._ofdm_config = ofdmcon
 
-    def get_channel(
-        self,
-        num_carriers: int,
-        num_symbols: int,
-        return_multipath: bool = False,
-        dc_in_middle: bool = True,
-    ) -> torch.Tensor:
-        """return the channel matrix for each OFDM resource elements
-
-        :param num_carriers: number of carriers
-        :type num_carriers: int
-        :param num_symbols: number of symbols
-        :type num_symbols: int
-        :param return_multipath: whether to return channel multipath components, defaults to False
-        :type return_multipath: bool, optional
-        :param dc_in_middle: whether to performing ifftshift on channel matrix to put DC component in the
-                            middle of OFDM grid, defaults to True
-        :type dc_in_middle: bool, optional
-
-        :return: [num_ant_rx, num_ant_tx, (num_paths), num_carriers, num_symbols], when dc_in_middle is True,
-                    the DC component (n=0) is located at the middle of OFDM grid
-        :rtype: torch.Tensor
-        """
-        if self.mpc_configs.num_paths == 0:
-            Hf = torch.zeros(
-                (self.rx_array.num_antennas, self.tx_array.num_antennas, 1, num_carriers, num_symbols),
-            )
-        else:
-            Atx = self.tx_array.steering_matrix(
-                grid=self.mpc_configs.aods,
-            )  # num_paths x num_ants_tx
-            Arx = self.rx_array.steering_matrix(
-                grid=self.mpc_configs.aoas,
-            )  # num_paths x num_ants_rx
-            A = torch.einsum("...l, ...li, ...lj->...lij", self.mpc_configs.path_gains, Arx, Atx.conj())  # type: ignore
-
-            # assert False
-            tt, ff = torch.meshgrid(
-                torch.arange(num_symbols) * self.ofdm_config.symbol_time,
-                torch.arange(num_carriers) * self.ofdm_config.subcarrier_spacing,
-                indexing="xy",
-            )
-            tt_ = torch.einsum("...nk,...l->...nkl", tt, self.mpc_configs.doppler_shifts)
-            ff_ = torch.einsum("...nk,...l->...nkl", ff, self.mpc_configs.path_delays)
-
-            omega_nk = exp1j2pi(tt_ - ff_)
-
-            Hf = torch.einsum(
-                "...nkl,...lij->...ijlnk",
-                omega_nk,
-                A,
-            )  # [num_ant_rx x num_ant_tx x num_paths x num_carriers x num_symbols]
-        if dc_in_middle:
-            Hf = torch.fft.fftshift(Hf, dim=-2)  # make DC component in the middle
-        if not return_multipath:
-            Hf = torch.einsum("...ijlnk -> ijnk", Hf)
-        return Hf
-
     def forward(self, signal_in: torch.Tensor) -> torch.Tensor:
         """apply channel on input OFDM signal grid
 
@@ -284,7 +225,90 @@ class OFDMBeamSpaceChannel(nn.Module):
         :rtype: torch.Tensor
         """
         num_symbols = signal_in.shape[-1]
-        Hf = self.get_channel(num_carriers=self.ofdm_config.Nfft, num_symbols=num_symbols, return_multipath=False)
+        Hf = generate_multipath_ofdm_channel(
+            tx_array=self.tx_array,
+            rx_array=self.rx_array,
+            num_carriers=self.ofdm_config.Nfft,
+            num_symbols=num_symbols,
+            mpc_configs=self.mpc_configs,
+            symbol_time=self.ofdm_config.symbol_time,
+            subcarrier_spacing=self.ofdm_config.subcarrier_spacing,
+        ).to(signal_in)
         out = torch.einsum("...ijnk, ...jnk -> ...ink", Hf, signal_in)
 
         return out
+
+
+def generate_multipath_ofdm_channel(
+    tx_array: Generic3DAntennaArray,
+    rx_array: Generic3DAntennaArray,
+    num_carriers: int,
+    num_symbols: int,
+    mpc_configs: MultiPathChannelConfig,
+    symbol_time: float,
+    subcarrier_spacing: float,
+    return_multipath: bool = False,
+    dc_in_middle: bool = True,
+) -> torch.Tensor:
+    """return the channel matrix for each OFDM resource elements of size
+        [num_ant_rx, num_ant_tx, (num_paths), num_carriers, num_symbols]
+
+    :param tx_array: transmit antenna array
+    :type tx_array: Generic3DAntennaArray
+    :param rx_array: receive antenna array
+    :type rx_array: Generic3DAntennaArray
+    :param num_carriers: number of carriers
+    :type num_carriers: int
+    :param num_symbols: number of OFDM symbols
+    :type num_symbols: int
+    :param mpc_configs: multi-path configurations, containing path gains, path delays,
+                        doppler shifts, aoas and aods
+    :type mpc_configs: MultiPathChannelConfig
+    :param symbol_time: OFDM symbol time
+    :type symbol_time: float
+    :param subcarrier_spacing: subcarrier spacing
+    :type subcarrier_spacing: float
+    :param return_multipath: whether to return channel multipath components, defaults to False
+    :type return_multipath: bool, optional
+    :param dc_in_middle: whether to performing ifftshift on channel matrix to put DC component in the
+                            middle of OFDM grid, defaults to True
+    :type dc_in_middle: bool, optional
+    :return: [num_ant_rx, num_ant_tx, (num_paths), num_carriers, num_symbols], when dc_in_middle is True,
+                the DC component (n=0) is located at the middle of OFDM grid
+    :rtype: torch.Tensor
+    """
+
+    if mpc_configs.num_paths == 0:
+        Hf = torch.zeros(
+            (rx_array.num_antennas, tx_array.num_antennas, 1, num_carriers, num_symbols),
+            dtype=torch.complex64,
+        )
+    else:
+        Atx = tx_array.steering_matrix(
+            grid=mpc_configs.aods,
+        )  # num_paths x num_ants_tx
+        Arx = rx_array.steering_matrix(
+            grid=mpc_configs.aoas,
+        )  # num_paths x num_ants_rx
+        A = torch.einsum("...l, ...li, ...lj->...lij", mpc_configs.path_gains, Arx, Atx.conj())  # type: ignore
+
+        tt, ff = torch.meshgrid(
+            torch.arange(num_symbols) * symbol_time,
+            torch.arange(num_carriers) * subcarrier_spacing,
+            indexing="xy",
+        )
+        tt_ = torch.einsum("...nk,...l->...nkl", tt, mpc_configs.doppler_shifts)
+        ff_ = torch.einsum("...nk,...l->...nkl", ff, mpc_configs.path_delays)
+
+        omega_nk = exp1j2pi(tt_ - ff_)
+
+        Hf = torch.einsum(
+            "...nkl,...lij->...ijlnk",
+            omega_nk,
+            A,
+        )  # [num_ant_rx x num_ant_tx x num_paths x num_carriers x num_symbols]
+    if dc_in_middle:
+        Hf = torch.fft.fftshift(Hf, dim=-2)  # make DC component in the middle
+    if not return_multipath:
+        Hf = torch.einsum("...ijlnk -> ijnk", Hf)
+    return Hf

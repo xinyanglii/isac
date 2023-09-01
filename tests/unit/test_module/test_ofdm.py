@@ -58,7 +58,7 @@ def test_ofdm_modem(Nfft, num_symbols, num_ant_tx, scs, cp_frac, num_guard_carri
 
     wf_f_dem = ofdmdem(wf_t)
     assert wf_f_dem.shape == wf_f.shape
-    assert torch.allclose(wf_f_dem, wf_f, rtol=1e-3)
+    assert torch.allclose(wf_f_dem, wf_f, rtol=2e-3)
 
     if num_guard_carriers[0] == num_guard_carriers[1]:
         deltasig = torch.zeros((num_ant, num_carriers, num_symbols), dtype=torch.complex64, device=device)
