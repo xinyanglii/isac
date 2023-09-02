@@ -74,13 +74,13 @@ class Generic3DAntennaArray(AbstractAntennaArray):
 
     def steering_matrix(
         self,
-        grid: torch.Tensor,
+        grid: Sequence[float] | torch.Tensor,
         axis: int = 0,
     ) -> torch.Tensor:
         """Generate steering matrix given angle grid and stacking axis
 
         :param grid: Grid of angles on which steering vectors are computed, grid[i] is the i-the angle,
-        :type grid: torch.Tensor
+        :type grid: Sequence[float] | torch.Tensor
         :param axis: axis along which steering vectors are stacked, defaults to 0
         :type axis: int, optional
         :return: stacked steering matrix
@@ -131,7 +131,7 @@ class UniformCubicArray(Generic3DAntennaArray):
         :param antenna_dimension: Sequence of number of antenna array elements along three dimensions
         :type antenna_dimension: Sequence[int] | torch.Tensor
         :param antenna_spacing: Sequence of antenna spacings along three dimensions in unit of meter
-        :type antenna_spacing: Sequence[float] | torch.Tensor, optional, defaults to [0.5, 0.5, 0.5]
+        :type antenna_spacing: Sequence[float] | torch.Tensor, defaults to [0.5, 0.5, 0.5]
         """
         if len(antenna_dimension) != 3 or len(antenna_spacing) != 3:
             raise ValueError("Antenna Dimensions and/or Antenna Spacings are not three-dimensional")
@@ -140,6 +140,7 @@ class UniformCubicArray(Generic3DAntennaArray):
         d_x, d_y, d_z = antenna_spacing[0], antenna_spacing[1], antenna_spacing[2]
 
         self.antenna_spacing_3d = antenna_spacing
+        self.antenna_spacing = antenna_spacing
 
         self.element_locations_x = -d_x * torch.arange(n_x)
         self.element_locations_y = -d_y * torch.arange(n_y)
@@ -151,14 +152,17 @@ class UniformCubicArray(Generic3DAntennaArray):
             indexing="xy",
         )
 
-        num_antennas = torch.prod(torch.as_tensor(antenna_dimension))
-        element_locations = torch.zeros((num_antennas, 3))
-        element_locations[:, 0] = self.element_locations_grid_x.flatten()
-        element_locations[:, 1] = self.element_locations_grid_y.flatten()
-        element_locations[:, 2] = self.element_locations_grid_z.flatten()
+        element_locations = torch.stack(
+            (
+                self.element_locations_grid_x.flatten(),
+                self.element_locations_grid_y.flatten(),
+                self.element_locations_grid_z.flatten(),
+            ),
+            dim=1,
+        )
 
         super().__init__(element_locations=element_locations, wavelength=wavelength)
-        assert self.num_antennas == num_antennas
+        assert self.num_antennas == n_x * n_y * n_z
 
     def steering_vector(
         self,
@@ -184,6 +188,46 @@ class UniformCubicArray(Generic3DAntennaArray):
             mode="z",
         )
         return kron3(svy, svx, svz)
+
+
+class UniformRectangularArray(UniformCubicArray):
+    def __init__(
+        self,
+        antenna_dimension: Sequence[int] | torch.Tensor,
+        antenna_spacing: Sequence[float] | torch.Tensor = [0.5, 0.5],  # in unit of meter
+        along_plane: Literal["xy", "yz", "xz"] = "yz",
+        wavelength: float = 1.0,
+    ) -> None:
+        """uniform rectangular antenna array (URA) along a specified plane,
+            in which antennas are placed in a rectangular shaped plane.
+        :param antenna_dimension: Sequence of number of antenna array elements along two dimensions
+        :type antenna_dimension: Sequence[int] | torch.Tensor
+        :param antenna_spacing: Sequence of antenna spacings along two dimensions in unit of meter
+        :type antenna_spacing: Sequence[float] | torch.Tensor, defaults to [0.5, 0.5]
+        :param along_plane: along which plane the array is placed, defaults to "yz"
+        :type along_plane: Literal['xy', 'yz', 'xz'], optional
+        :param wavelength: length of wave, defaults to 1.0
+        :type wavelength: float, optional
+        """
+
+        # I should change this to a size check with antenna_dimensions
+        if len(antenna_dimension) != 2 or len(antenna_spacing) != 2:
+            raise ValueError("Antenna Dimensions and/or Antenna Spacings are not two-dimensional")
+
+        assert along_plane in ["xy", "yz", "xz"]
+        self.along_plane = along_plane
+        if along_plane == "xy":
+            antenna_dimension = (antenna_dimension[0], antenna_dimension[1], 1)
+            antenna_spacing_3d = (antenna_spacing[0], antenna_spacing[1], 0.0)
+        elif along_plane == "yz":
+            antenna_dimension = (1, antenna_dimension[0], antenna_dimension[1])
+            antenna_spacing_3d = (0.0, antenna_spacing[0], antenna_spacing[1])
+        else:
+            antenna_dimension = (antenna_dimension[0], 1, antenna_dimension[1])
+            antenna_spacing_3d = (antenna_spacing[0], 0.0, antenna_spacing[1])
+
+        super().__init__(antenna_dimension=antenna_dimension, antenna_spacing=antenna_spacing_3d, wavelength=wavelength)
+        self.antenna_spacing = antenna_spacing
 
 
 class UniformLinearArray(UniformCubicArray):
@@ -217,46 +261,6 @@ class UniformLinearArray(UniformCubicArray):
         else:
             antenna_dimension = (1, 1, num_antennas)
             antenna_spacing_3d = (0.0, 0.0, antenna_spacing)
-
-        super().__init__(antenna_dimension=antenna_dimension, antenna_spacing=antenna_spacing_3d, wavelength=wavelength)
-        self.antenna_spacing = antenna_spacing
-
-
-class UniformRectangularArray(UniformCubicArray):
-    def __init__(
-        self,
-        antenna_dimension: Sequence[int] | torch.Tensor,
-        antenna_spacing: Sequence[float] | torch.Tensor = [0.5, 0.5],  # in unit of meter
-        along_plane: Literal["xy", "yz", "xz"] = "yz",
-        wavelength: float = 1.0,
-    ) -> None:
-        """uniform rectangular antenna array (URA) along a specified plane,
-            in which antennas are placed in a rectangular shaped plane.
-        :param antenna_dimension: Sequence of number of antenna array elements along two dimensions
-        :type antenna_dimension: Sequence[int] | torch.Tensor
-        :param antenna_spacing: Sequence of antenna spacings along two dimensions in unit of meter
-        :type antenna_spacing: Sequence[float] | torch.Tensor, optional, defaults to [0.5, 0.5]
-        :param along_plane: along which plane the array is placed, defaults to "yz"
-        :type along_plane: Literal['xy', 'yz', 'xz'], optional
-        :param wavelength: length of wave, defaults to 1.0
-        :type wavelength: float, optional
-        """
-
-        # I should change this to a size check with antenna_dimensions
-        if len(antenna_dimension) != 2 or len(antenna_spacing) != 2:
-            raise ValueError("Antenna Dimensions and/or Antenna Spacings are not two-dimensional")
-
-        assert along_plane in ["xy", "yz", "xz"]
-        self.along_plane = along_plane
-        if along_plane == "xy":
-            antenna_dimension = (antenna_dimension[0], antenna_dimension[1], 1)
-            antenna_spacing_3d = (antenna_spacing[0], antenna_spacing[1], 0.0)
-        elif along_plane == "yz":
-            antenna_dimension = (1, antenna_dimension[0], antenna_dimension[1])
-            antenna_spacing_3d = (0.0, antenna_spacing[0], antenna_spacing[1])
-        else:
-            antenna_dimension = (antenna_dimension[0], 1, antenna_dimension[1])
-            antenna_spacing_3d = (antenna_spacing[0], 0.0, antenna_spacing[1])
 
         super().__init__(antenna_dimension=antenna_dimension, antenna_spacing=antenna_spacing_3d, wavelength=wavelength)
         self.antenna_spacing = antenna_spacing
