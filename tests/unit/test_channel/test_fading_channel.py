@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from isac.module.channel.fading_channel import AWGNChannel, RayleighChannel
+from isac.channel.fading_channel import AWGNChannel, RayleighChannel
 from isac.utils import db2lin, lin2db, measure_batch_sig_pow
 
 batch_size = 16

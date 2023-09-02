@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 import torch.nn as nn
 
-from ...utils import crandn, db2lin, measure_batch_sig_pow
+from ..utils import crandn, db2lin, measure_batch_sig_pow
 
 
 class AWGNChannel(nn.Module):

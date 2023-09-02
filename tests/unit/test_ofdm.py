@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from isac.module.ofdm import OFDMConfig, OFDMDemodulator, OFDMModulator
+from isac.ofdm.ofdm import OFDMConfig, OFDMDemodulator, OFDMModulator
 from isac.utils import crandn
 
 

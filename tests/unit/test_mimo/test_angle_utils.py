@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from isac.antenna.array_utils import format_angle
+from isac.mimo.angle_utils import format_angle
 
 
 def test_format_angle():

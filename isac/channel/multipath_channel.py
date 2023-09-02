@@ -6,10 +6,9 @@ import torch
 import torch.nn as nn
 from scipy.constants import c
 
-from ...antenna import Generic3DAntennaArray
-from ...antenna.array_utils import format_angle
-from ...utils import crandn, exp1j2pi, uniform
+from ..mimo import Generic3DAntennaArray, format_angle
 from ..ofdm import OFDMConfig
+from ..utils import crandn, exp1j2pi, uniform
 
 
 class MultiPathChannelConfig:

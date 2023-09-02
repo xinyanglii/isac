@@ -1,8 +1,7 @@
 import pytest
 import torch
 
-from isac.antenna import Generic3DAntennaArray, UniformLinearArray, UniformRectangularArray
-from isac.antenna.uniform_arrays import UniformCubicArray
+from isac.mimo import Generic3DAntennaArray, UniformCubicArray, UniformLinearArray, UniformRectangularArray
 from isac.utils import freq2wavelen, uniform
 
 

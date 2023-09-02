@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 import torch
 
-from isac.antenna import UniformCubicArray, UniformLinearArray, UniformRectangularArray
-from isac.module.channel import MultiPathChannelConfig, OFDMBeamSpaceChannel, generate_multipath_ofdm_channel
-from isac.module.ofdm import OFDMConfig
+from isac.channel import MultiPathChannelConfig, OFDMBeamSpaceChannel, generate_multipath_ofdm_channel
+from isac.mimo.antenna import UniformCubicArray, UniformLinearArray, UniformRectangularArray
+from isac.ofdm.ofdm import OFDMConfig
 from isac.utils import crandn, uniform
 
 
