@@ -33,7 +33,7 @@ Now you are able to import this package in your code such as:
 
 ```python
 import isac
-from isac.module.ofdm import OFDMModulator
+from isac.ofdm import OFDMModulator
 ...
 ```
 
