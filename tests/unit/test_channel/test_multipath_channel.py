@@ -76,7 +76,6 @@ def test_beam_space_channel(
 
     mpc_configs = MultiPathChannelConfig.random_generate(
         num_paths=num_paths,
-        sampling_time=sampling_time,
     )
     obschannel = OFDMBeamSpaceChannel(
         mpc_configs=mpc_configs,
@@ -90,7 +89,6 @@ def test_beam_space_channel(
         num_carriers=num_carriers,
         num_symbols=num_symbols,
         mpc_configs=mpc_configs,
-        symbol_time=symbol_duration,
         subcarrier_spacing=scs,
     )
 

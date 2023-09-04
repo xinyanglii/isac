@@ -4,7 +4,6 @@ from typing import Sequence
 
 import torch
 import torch.nn as nn
-from scipy.constants import c
 
 from ..mimo import Generic3DAntennaArray, format_angle
 from ..ofdm import OFDMConfig
@@ -123,13 +122,10 @@ class MultiPathChannelConfig:
     def random_generate(
         cls,
         num_paths: int,
-        sampling_time: float = 1 / (1024 * 15e3),
-        carrier_frequency: float = 3e9,
+        max_delay: float = 1e-7,
+        max_doppler: float = 1000,
     ) -> MultiPathChannelConfig:
         assert isinstance(num_paths, int) and num_paths >= 0
-        assert sampling_time > 0
-        fc = carrier_frequency
-        assert fc > 0
         path_gains = crandn(num_paths)
         aodsaz = uniform(-torch.pi, torch.pi, num_paths)
         aodsel = uniform(-torch.pi / 2, torch.pi / 2, num_paths)
@@ -139,10 +135,8 @@ class MultiPathChannelConfig:
         aoasel = uniform(-torch.pi / 2, torch.pi / 2, num_paths)
         aoas = torch.stack((aoasaz, aoasel), dim=-1)
 
-        d = uniform(0, 100, num_paths)
-        path_delays = d / c
-        v = uniform(-80, 80, num_paths)
-        doppler_shifts = v * fc / c
+        path_delays = uniform(0, max_delay, num_paths)
+        doppler_shifts = uniform(-max_doppler, max_doppler, num_paths)
 
         return cls(
             path_gains=path_gains,
@@ -230,7 +224,6 @@ class OFDMBeamSpaceChannel(nn.Module):
             num_carriers=self.ofdm_config.Nfft,
             num_symbols=num_symbols,
             mpc_configs=self.mpc_configs,
-            symbol_time=self.ofdm_config.symbol_time,
             subcarrier_spacing=self.ofdm_config.subcarrier_spacing,
         ).to(signal_in)
         out = torch.einsum("...ijnk, ...jnk -> ...ink", Hf, signal_in)
@@ -244,7 +237,6 @@ def generate_multipath_ofdm_channel(
     num_carriers: int,
     num_symbols: int,
     mpc_configs: MultiPathChannelConfig,
-    symbol_time: float,
     subcarrier_spacing: float,
     return_multipath: bool = False,
     dc_in_middle: bool = True,
@@ -292,7 +284,7 @@ def generate_multipath_ofdm_channel(
         A = torch.einsum("...l, ...li, ...lj->...lij", mpc_configs.path_gains, Arx, Atx.conj())  # type: ignore
 
         tt, ff = torch.meshgrid(
-            torch.arange(num_symbols) * symbol_time,
+            torch.arange(num_symbols) / subcarrier_spacing,
             torch.arange(num_carriers) * subcarrier_spacing,
             indexing="xy",
         )
