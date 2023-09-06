@@ -22,9 +22,9 @@ def format_angle(angle: Union[float, torch.Tensor]) -> torch.Tensor:
 
     angle_formatted = torch.zeros(2).to(angle)  # [azimuth, elevation]
     if angle.numel() == 1:
-        angle_formatted[1] = angle
+        angle_formatted[1] = angle.clone()
     else:
-        angle_formatted = angle
+        angle_formatted = angle.clone()
 
     assert angle_formatted.shape == (2,)
     assert torch.isreal(angle_formatted).all()

@@ -288,8 +288,8 @@ def generate_multipath_ofdm_channel(
             torch.arange(num_carriers) * subcarrier_spacing,
             indexing="xy",
         )
-        tt_ = torch.einsum("...nk,...l->...nkl", tt, mpc_configs.doppler_shifts)
-        ff_ = torch.einsum("...nk,...l->...nkl", ff, mpc_configs.path_delays)
+        tt_ = torch.einsum("...nk,...l->...nkl", tt.to(mpc_configs.doppler_shifts), mpc_configs.doppler_shifts)
+        ff_ = torch.einsum("...nk,...l->...nkl", ff.to(mpc_configs.path_delays), mpc_configs.path_delays)
 
         omega_nk = exp1j2pi(tt_ - ff_)
 

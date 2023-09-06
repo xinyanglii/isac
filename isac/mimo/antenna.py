@@ -282,4 +282,4 @@ def uniform_sv(
     else:
         tmp = cos_az * cos_el
 
-    return exp1j2pi(tmp * element_locations / wavelength)
+    return exp1j2pi(tmp * element_locations.to(angle) / wavelength)
